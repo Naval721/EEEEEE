@@ -1,0 +1,274 @@
+:root {
+    --bg-main: #0B0E14;
+    /* Deep Navy almost black */
+    --bg-secondary: #151922;
+    /* Slightly lighter navy */
+    --accent: #00E5FF;
+    /* Electric Cyan */
+    --accent-glow: rgba(0, 229, 255, 0.35);
+    --secondary-accent: #7C3AED;
+    /* Electric Violet */
+    --text-primary: #F0F9FF;
+    --text-secondary: #94A3B8;
+    --border: rgba(255, 255, 255, 0.08);
+    --glass: rgba(21, 25, 34, 0.7);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Outfit', sans-serif;
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+/* Dynamic Background */
+.bg-glow {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100vw;
+    height: 60vh;
+    background: radial-gradient(circle at center, rgba(124, 58, 237, 0.15) 0%, rgba(11, 14, 20, 0) 70%);
+    z-index: -1;
+    pointer-events: none;
+}
+
+.bg-grid {
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+    opacity: 0.5;
+    z-index: -2;
+    mask-image: radial-gradient(circle at center, black, transparent 80%);
+}
+
+/* Header */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 3%;
+    background: rgba(11, 14, 20, 0.95);
+    /* More solid on mobile */
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    /* Higher than video */
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+}
+
+.brand-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--secondary-accent));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.live-badge {
+    background: rgba(220, 38, 38, 0.2);
+    color: #ef4444;
+    /* Web safe red for LIVE */
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    animation: flash 2s infinite;
+}
+
+@keyframes flash {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Layout */
+.main-wrapper {
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 95%;
+    padding: 2rem 0;
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    /* Video + Sidebar */
+    gap: 2rem;
+}
+
+@media (max-width: 1024px) {
+    .main-wrapper {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Video Section */
+.video-card {
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    position: relative;
+}
+
+.video-container {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #000;
+}
+
+/* Plyr Custom Theme Overrides */
+.plyr {
+    --plyr-color-main: var(--accent);
+    --plyr-video-background: #000;
+    --plyr-menu-background: #1e293b;
+    --plyr-menu-color: #f8fafc;
+}
+
+/* Stream Meta */
+.stream-meta {
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-top: 1px solid var(--border);
+}
+
+.stream-title h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(to right, #fff, #94a3b8);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.quality-tag {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    background: rgba(0, 229, 255, 0.1);
+    color: var(--accent);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+    border: 1px solid rgba(0, 229, 255, 0.2);
+}
+
+/* Sidebar (Chat/Stats) */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.widget-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+}
+
+.widget-title {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* Viewers & Info items */
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+}
+
+.stat-value {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* Ads Area */
+.ad-slot {
+    min-height: 250px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.02) 0%, transparent 70%);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.ad-label {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 2px 5px;
+    font-size: 0.6rem;
+    border-radius: 3px;
+}
+
+/* Footer */
+footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-secondary);
+    margin-top: auto;
+    background: var(--bg-secondary);
+}
+
+/* Shaka overrides */
+.shaka-spinner-container {
+    display: none !important;
+}
+
+.uc {
+    pointer-events: none;
+}

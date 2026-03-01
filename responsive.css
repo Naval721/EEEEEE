@@ -1,0 +1,116 @@
+/* =========================================
+   RESPONSIVE DESIGN SYSTEM
+   ========================================= */
+
+/* Tablet & Smaller Laptops (max-width: 1024px) */
+@media (max-width: 1024px) {
+    .main-wrapper {
+        grid-template-columns: 1fr;
+        width: 95%;
+        gap: 1.5rem;
+    }
+
+    .video-card {
+        box-shadow: none;
+        /* Reduce painting on lower power devices */
+    }
+
+    /* Make sidebar items display in a grid for better space usage */
+    .sidebar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1rem;
+    }
+}
+
+/* Mobile Devices (max-width: 768px) */
+@media (max-width: 768px) {
+
+    /* Header Compact Mode */
+    header {
+        padding: 0.8rem 1rem;
+    }
+
+    .brand {
+        font-size: 1.2rem;
+    }
+
+    .brand-icon {
+        width: 28px;
+        height: 28px;
+    }
+
+    /* Edge-to-Edge Video on Mobile */
+    .main-wrapper {
+        width: 100%;
+        padding: 0;
+        margin: 0;
+        gap: 0;
+    }
+
+    .video-card {
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-top: none;
+    }
+
+    .video-container {
+        /* Sticky Video Player on Mobile Scroll */
+        position: sticky;
+        top: 60px;
+        /* Below header */
+        z-index: 50;
+    }
+
+    /* Content Padding below video */
+    .stream-meta {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .stream-title h1 {
+        font-size: 1.25rem;
+    }
+
+    /* Sidebar adjustments */
+    .sidebar {
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .widget-card {
+        padding: 1rem;
+    }
+
+    /* Mobile Audio & Stats Grid */
+    .stat-item {
+        font-size: 0.9rem;
+    }
+
+    /* Touch Targets */
+    .btn-boost {
+        padding: 0.8rem;
+        font-size: 0.9rem;
+    }
+
+    /* Hide background effects on mobile for performance */
+    .bg-glow,
+    .bg-grid {
+        display: none;
+    }
+}
+
+/* Small Phones (max-width: 480px) */
+@media (max-width: 480px) {
+    .sidebar {
+        grid-template-columns: 1fr;
+    }
+
+    .quality-tag {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.4rem;
+    }
+}

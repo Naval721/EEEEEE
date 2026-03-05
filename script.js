@@ -35,11 +35,8 @@ let retryCount = 0;
 function startLoadTimer() {
     clearTimeout(loadTimer);
     loadTimer = setTimeout(() => {
-        showError(
-            retryCount < MAX_RETRIES
-                ? 'Stream is taking too long to respond. Retrying automatically…'
-                : 'Stream unavailable. Check your connection and try again.'
-        );
+        console.warn('[NexusStream] Load timeout — retrying...');
+        retryStream();
     }, LOAD_TIMEOUT_MS);
 }
 
@@ -127,40 +124,40 @@ async function loadStream() {
             }
         },
         streaming: {
-            bufferingGoal: 45,         // Safe buffer size
-            rebufferingGoal: 5,        // Ensure solid download before resuming
-            bufferBehind: 30,          // Keep some memory 
+            bufferingGoal: 12,           // Shorter buffer — faster live startup
+            rebufferingGoal: 2,          // Resume after 2s of data — don't wait long
+            bufferBehind: 30,            // Keep 30s behind for seek support
             lowLatencyMode: false,
             ignoreTextStreamFailures: true,
             alwaysStreamText: false,
             stallEnabled: true,
-            stallThreshold: 2,         // Safe stall threshold 
+            stallThreshold: 1,           // Detect stalls quickly
             jumpLargeGaps: true,
             retryParameters: {
-                maxAttempts: 10,       // Resilient fetching
+                maxAttempts: 10,
                 baseDelay: 1000,
                 backoffFactor: 1.5,
                 fuzzFactor: 0.3,
-                timeout: 10000         // Stable timeout to prevent false connection failures
+                timeout: 15000           // More time per attempt on slow connections
             }
         },
         manifest: {
             dash: {
                 autoCorrectDrift: true,
-                defaultPresentationDelay: 20 // Keep proper distance from live edge to avoid 404 chunks
+                defaultPresentationDelay: 6  // Stay ~6s behind live edge — close but safe
             },
             retryParameters: {
                 maxAttempts: 10,
                 baseDelay: 1000,
                 backoffFactor: 1.5,
                 fuzzFactor: 0.3,
-                timeout: 10000
+                timeout: 15000
             }
         },
         abr: {
             enabled: true,
-            defaultBandwidthEstimate: 1500000, // 1.5 Mbps default
-            switchInterval: 2,                 // Evaluate every 2s
+            defaultBandwidthEstimate: 2000000, // 2 Mbps default estimate
+            switchInterval: 4,                 // Evaluate ABR every 4s — less jitter
             bandwidthUpgradeTarget: 0.85,
             bandwidthDowngradeTarget: 0.95
         }
@@ -171,20 +168,16 @@ async function loadStream() {
         clearTimeout(loadTimer);
         retryCount = 0;
 
-        // Ensure seamless autoplay and recovery
-        video.muted = false; // Attempt to start unmuted
-        video.play().catch((err) => {
-            console.warn('[NexusStream] Playback rejected by browser:', err);
-            // Fallback to muted playback so the stream starts without pausing
-            video.muted = true;
+        // Autoplay muted (required by browser policy) — unmute on first user interaction
+        video.muted = true;
+        video.play().catch(() => { });
+        document.addEventListener('click', () => {
+            video.muted = false;
             video.play().catch(() => { });
-            // Unmute upon first user interaction
-            document.addEventListener('click', () => {
-                video.muted = false;
-            }, { once: true });
-        });
+        }, { once: true });
     } catch (e) {
         console.error('[NexusStream] Stream loading failed:', e);
+        retryStream();
     }
 }
 
@@ -246,53 +239,58 @@ async function initPlayer() {
     try {
         await loadStream();
 
-        // Active Safeguard Watchdog: prevents indefinite freezing on long streams
-        let lastTime = -1;
-        let stalledCount = 0;
-        let idleTime = 0;
+        // ── Watchdog: recovers from genuine freezes without false-triggering on buffering ──
+        let lastTime = 0;
+        let frozenCount = 0;   // counts 5s ticks where time didn't advance AND video is NOT buffering
+        let stallCount = 0;    // counts 5s ticks where time didn't advance AND video IS buffering
 
         setInterval(() => {
             if (!video || !shakaPlayer) return;
 
-            // Track if stream is paused or stuck completely
-            if (video.paused || video.currentTime === lastTime) {
-                idleTime += 5;
-                if (idleTime >= 30) {
-                    console.warn('[NexusStream] Stream paused or not working for 30s. Auto-reloading page...');
-                    location.reload();
-                    return;
+            const currentTime = video.currentTime;
+            const isBuffering = video.readyState < 3;   // HAVE_FUTURE_DATA = 3
+            const isPlaying = !video.paused && !video.ended;
+            const timeAdvanced = currentTime !== lastTime;
+
+            if (isPlaying) {
+                if (timeAdvanced) {
+                    // ✅ Playing normally — reset all counters
+                    frozenCount = 0;
+                    stallCount = 0;
+
+                    // Drift check: jump to live edge if too far behind
+                    const seekRange = shakaPlayer.seekRange();
+                    if (seekRange && shakaPlayer.isLive() && (seekRange.end - currentTime > 30)) {
+                        console.warn('[NexusStream] Drifted > 30s behind live edge. Jumping forward.');
+                        video.currentTime = seekRange.end - 3;
+                    }
+                } else if (isBuffering) {
+                    // ⏳ Buffering (network slow) — give it time, but retry after 60s
+                    stallCount++;
+                    console.log(`[NexusStream] Buffering... (${stallCount * 5}s)`);
+                    if (stallCount >= 12) {  // 60 seconds of buffering
+                        console.warn('[NexusStream] Buffering > 60s — reloading stream manifest.');
+                        stallCount = 0;
+                        retryStream();
+                    }
+                } else {
+                    // 🔴 Time not advancing, NOT buffering = genuinely frozen
+                    frozenCount++;
+                    console.warn(`[NexusStream] Stream frozen (${frozenCount * 5}s)`);
+                    if (frozenCount >= 4) {  // 20 seconds frozen with no buffer
+                        console.warn('[NexusStream] Stream frozen 20s — hard reloading page.');
+                        location.reload();
+                    }
                 }
-            } else {
-                idleTime = 0;
             }
 
-            if (video.paused) return;
-
-            // Check if playhead is stuck
-            if (video.currentTime === lastTime && video.readyState < 3) {
-                stalledCount++;
-                // If stuck buffering for ~15 seconds (3 checks of 5s)
-                if (stalledCount >= 3) {
-                    console.warn('[NexusStream] Deep stall detected over a long session. MPD may be stale. Executing hard soft-reboot of stream...');
-                    stalledCount = 0;
-                    retryStream(); // Actively restarts Shaka internals and fetches a fresh MPD manifest
-                }
-            } else {
-                lastTime = video.currentTime;
-                stalledCount = 0;
-
-                // Drift detection: if we somehow slip far behind the live edge, catch up automatically
-                const seekRange = shakaPlayer.seekRange();
-                if (seekRange && shakaPlayer.isLive() && (seekRange.end - video.currentTime > 20)) {
-                    console.warn('[NexusStream] Stream drifted too far behind live. Skipping forward to catch up.');
-                    video.currentTime = seekRange.end - 5;
-                }
-            }
+            lastTime = currentTime;
         }, 5000);
 
     } catch (e) {
         clearTimeout(loadTimer);
         console.error('[NexusStream] Init load failed:', e);
+        retryStream();
     }
 }
 

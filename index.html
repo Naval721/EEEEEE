@@ -13,12 +13,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
 
-    <!-- Shaka Player CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.1/controls.min.css"
-        crossorigin="anonymous">
-    <!-- Shaka Player JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.1/shaka-player.ui.min.js"
-        crossorigin="anonymous"></script>
+    <!-- HLS.js -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.1.4/dist/hls.min.js"></script>
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
@@ -98,9 +94,9 @@
                     </div>
 
                     <!-- Video player -->
-                    <div data-shaka-player-container
+                    <div id="player-container"
                         style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:1;">
-                        <video data-shaka-player id="player" autoplay muted playsinline
+                        <video id="player" autoplay muted playsinline controls
                             style="width:100%; height:100%; background:#000;"></video>
                     </div>
                 </div>

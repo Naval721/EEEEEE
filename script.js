@@ -1,336 +1,207 @@
 // ======================================================
-//  Nexus Stream — Main Script (Shaka Player + DRM)
+//  Nexus Stream — HLS.js Player
 // ======================================================
 
 // Stream source — HLS (no DRM)
 // Encoded at runtime to prevent simple scraping
 const _E_URL = 'aHR0cHM6Ly9ncmFuZC1zLXYwMDEuZmFnZ290c3BvcnRzLnR2L291dC92MS81Njk4MGYxNzQ1YThhZDE0NmE4YjRhNTFmOWVmN2ExOS9taXgtc3RyZWFtLm0zdTg=';
-
 const STREAM_URL = atob(_E_URL);
 
-const LOAD_TIMEOUT_MS = 25000;
-const AUTO_RETRY_DELAY_MS = 5000;
 const MAX_RETRIES = 15;
+const RETRY_DELAY_MS = 5000;
+const LOAD_TIMEOUT_MS = 30000;
 
 // ── DOM Refs ─────────────────────────────────────────
-const videoContainer = document.querySelector('[data-shaka-player-container]');
 const video = document.getElementById('player');
-const loader = document.getElementById('stream-loader');
-const errorBox = document.getElementById('stream-error');
-const errorMsg = document.getElementById('stream-error-msg');
-const countdown = document.getElementById('retry-countdown');
 const offlineBanner = document.getElementById('offline-banner');
 
-let shakaPlayer = null;
-let loadTimer = null;
-let autoRetryTimer = null;
-let countdownTimer = null;
+let hls = null;
 let retryCount = 0;
+let loadTimer = null;
+let retryTimer = null;
 
-// ── Load Timer ───────────────────────────────────────
-function startLoadTimer() {
-    clearTimeout(loadTimer);
-    loadTimer = setTimeout(() => {
-        console.warn('[NexusStream] Load timeout — retrying...');
-        retryStream();
-    }, LOAD_TIMEOUT_MS);
-}
-
-// ── Retry ────────────────────────────────────────────
-async function retryStream() {
-    if (!navigator.onLine) {
-        return;
-    }
-    clearAutoRetry();
-    retryCount++;
-
-    if (retryCount > MAX_RETRIES) {
-        console.warn('[NexusStream] Max retries reached, hard refreshing page to recover stream...');
-        location.reload(); // Force page refresh to totally fix the stuck player
-        return;
-    }
-
-    startLoadTimer();
-
-    try {
-        if (shakaPlayer) {
-            await shakaPlayer.unload();
-            await new Promise(r => setTimeout(r, 1000)); // Sleep 1s before restarting cleanly
-        }
-        await loadStream();
-    } catch (e) {
-        console.warn('[NexusStream] Retry attempt failed:', e);
-    }
-}
-
-function scheduleAutoRetry() {
-    clearAutoRetry();
-    if (retryCount >= MAX_RETRIES) { if (countdown) countdown.textContent = ''; return; }
-
-    let remaining = Math.round(AUTO_RETRY_DELAY_MS / 1000);
-    if (countdown) countdown.textContent = `Auto-retrying in ${remaining}s…`;
-
-    countdownTimer = setInterval(() => {
-        remaining--;
-        if (remaining > 0) {
-            if (countdown) countdown.textContent = `Auto-retrying in ${remaining}s…`;
+// ── HLS Init ─────────────────────────────────────────
+function initHls() {
+    if (!Hls.isSupported()) {
+        // Fallback: try native HLS (Safari)
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = STREAM_URL;
+            video.addEventListener('loadedmetadata', () => video.play().catch(() => { }));
         } else {
-            clearInterval(countdownTimer);
-            if (countdown) countdown.textContent = '';
+            showPlayerError('HLS not supported in this browser. Try Chrome or Edge.');
         }
-    }, 1000);
+        return;
+    }
 
-    autoRetryTimer = setTimeout(retryStream, AUTO_RETRY_DELAY_MS);
-}
+    // Destroy existing instance if any
+    if (hls) {
+        hls.destroy();
+        hls = null;
+    }
 
-function clearAutoRetry() {
-    clearTimeout(autoRetryTimer);
-    autoRetryTimer = null;
-    clearCountdown();
-}
-
-function clearCountdown() {
-    clearInterval(countdownTimer);
-    countdownTimer = null;
-    if (countdown) countdown.textContent = '';
-}
-
-// ── Error Messages ───────────────────────────────────
-function friendlyError(e) {
-    if (!e) return 'An unknown error occurred.';
-    const code = e.code || (e.detail && e.detail.code);
-    if (!navigator.onLine) return 'You are offline. Stream paused.';
-    if (code === 1001) return 'Network request failed. Check your connection.';
-    if (code === 1002) return 'Stream URL could not be reached.';
-    if (code === 3016) return 'DRM license error. Stream may be encrypted.';
-    if (code === 4000) return 'Stream format not supported by this browser.';
-    if (code === 6008 || code === 6007) return 'Playback error. Retrying…';
-    return `Stream error (code ${code || 'unknown'}). Retrying…`;
-}
-
-// ── Shaka Player Init ────────────────────────────────
-async function loadStream() {
-    clearTimeout(loadTimer);
-    startLoadTimer();
-
-    shakaPlayer.configure({
-        streaming: {
-            bufferingGoal: 12,
-            rebufferingGoal: 2,
-            bufferBehind: 30,
-            lowLatencyMode: false,
-            ignoreTextStreamFailures: true,
-            stallEnabled: true,
-            stallThreshold: 1,
-            jumpLargeGaps: true,
-            retryParameters: {
-                maxAttempts: 10,
-                baseDelay: 1000,
-                backoffFactor: 1.5,
-                fuzzFactor: 0.3,
-                timeout: 15000
-            }
-        },
-        manifest: {
-            retryParameters: {
-                maxAttempts: 10,
-                baseDelay: 1000,
-                backoffFactor: 1.5,
-                fuzzFactor: 0.3,
-                timeout: 15000
-            }
-        },
-        abr: {
-            enabled: true,
-            defaultBandwidthEstimate: 2000000,
-            switchInterval: 4,
-            bandwidthUpgradeTarget: 0.85,
-            bandwidthDowngradeTarget: 0.95
+    hls = new Hls({
+        maxBufferLength: 20,      // Buffer up to 20s ahead
+        maxMaxBufferLength: 30,
+        liveSyncDurationCount: 3,    // Stay 3 segments behind live edge
+        liveMaxLatencyDurationCount: 6,
+        levelLoadingMaxRetry: 10,
+        fragLoadingMaxRetry: 10,
+        manifestLoadingMaxRetry: 10,
+        levelLoadingRetryDelay: 500,
+        fragLoadingRetryDelay: 500,
+        manifestLoadingRetryDelay: 500,
+        xhrSetup: function (xhr) {
+            xhr.withCredentials = false;
         }
     });
 
-    // Strip Referer header so the CDN doesn't block segment requests
-    shakaPlayer.getNetworkingEngine().registerRequestFilter((type, request) => {
-        delete request.headers['Referer'];
-        request.headers['Origin'] = '';
-    });
+    hls.loadSource(STREAM_URL);
+    hls.attachMedia(video);
 
-    try {
-        await shakaPlayer.load(STREAM_URL);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('[NexusStream] Manifest loaded — starting playback.');
         clearTimeout(loadTimer);
         retryCount = 0;
 
-        // Autoplay muted (required by browser policy) — unmute on first user interaction
         video.muted = true;
         video.play().catch(() => { });
+        // Unmute on first click
         document.addEventListener('click', () => {
             video.muted = false;
             video.play().catch(() => { });
         }, { once: true });
-    } catch (e) {
-        console.error('[NexusStream] Stream loading failed:', e);
-        retryStream();
-    }
-}
+    });
 
-async function initPlayer() {
-    shaka.polyfill.installAll();
-
-    if (!shaka.Player.isBrowserSupported()) {
-        showError('Your browser does not support this stream format. Try Chrome or Edge.');
-        return;
-    }
-
-    // Get the auto-initialized UI from the video container
-    const ui = videoContainer['ui'];
-
-    if (ui) {
-        const controls = ui.getControls();
-        shakaPlayer = controls.getPlayer();
-
-        // Initialize Shaka UI Overlay for added features (quality, fullscreen, etc.)
-        ui.configure({
-            controlPanelElements: [
-                'play_pause',
-                'time_and_duration',
-                'spacer',
-                'mute',
-                'volume',
-                'fullscreen',
-                'quality'
-            ]
-        });
-    } else {
-        // Fallback if UI wasn't auto-attached
-        shakaPlayer = new shaka.Player(video);
-        const fbUi = new shaka.ui.Overlay(shakaPlayer, videoContainer, video);
-        fbUi.configure({
-            controlPanelElements: [
-                'play_pause',
-                'time_and_duration',
-                'spacer',
-                'mute',
-                'volume',
-                'fullscreen',
-                'quality'
-            ]
-        });
-    }
-
-    // Player-level error handler for automatic recovery bounds
-    shakaPlayer.addEventListener('error', (e) => {
-        clearTimeout(loadTimer);
-        if (e.detail && e.detail.severity === shaka.util.Error.Severity.CRITICAL) {
-            console.error('[NexusStream] Critical error detected, stream crashed. Recovering via retryStream().', e.detail);
-            retryStream(); // Immediately auto-recover instead of staying stuck
-        } else {
-            console.warn('[NexusStream] Non-critical Shaka error:', e.detail);
+    hls.on(Hls.Events.LEVEL_UPDATED, (_, data) => {
+        // Update bitrate stat in sidebar
+        const level = hls.levels[hls.currentLevel];
+        if (level) {
+            const bsStat = document.getElementById('bitrate-stat');
+            const resStat = document.getElementById('res-stat');
+            if (bsStat) bsStat.textContent = level.bitrate ? Math.round(level.bitrate / 1000) + ' kbps' : 'Auto';
+            if (resStat) resStat.textContent = level.height ? level.height + 'p' : '--';
         }
     });
 
-    try {
-        await loadStream();
-
-        // ── Watchdog: recovers from genuine freezes without false-triggering on buffering ──
-        let lastTime = 0;
-        let frozenCount = 0;   // counts 5s ticks where time didn't advance AND video is NOT buffering
-        let stallCount = 0;    // counts 5s ticks where time didn't advance AND video IS buffering
-
-        setInterval(() => {
-            if (!video || !shakaPlayer) return;
-
-            const currentTime = video.currentTime;
-            const isBuffering = video.readyState < 3;   // HAVE_FUTURE_DATA = 3
-            const isPlaying = !video.paused && !video.ended;
-            const timeAdvanced = currentTime !== lastTime;
-
-            if (isPlaying) {
-                if (timeAdvanced) {
-                    // ✅ Playing normally — reset all counters
-                    frozenCount = 0;
-                    stallCount = 0;
-
-                    // Drift check: jump to live edge if too far behind
-                    const seekRange = shakaPlayer.seekRange();
-                    if (seekRange && shakaPlayer.isLive() && (seekRange.end - currentTime > 30)) {
-                        console.warn('[NexusStream] Drifted > 30s behind live edge. Jumping forward.');
-                        video.currentTime = seekRange.end - 3;
-                    }
-                } else if (isBuffering) {
-                    // ⏳ Buffering (network slow) — give it time, but retry after 60s
-                    stallCount++;
-                    console.log(`[NexusStream] Buffering... (${stallCount * 5}s)`);
-                    if (stallCount >= 12) {  // 60 seconds of buffering
-                        console.warn('[NexusStream] Buffering > 60s — reloading stream manifest.');
-                        stallCount = 0;
-                        retryStream();
-                    }
-                } else {
-                    // 🔴 Time not advancing, NOT buffering = genuinely frozen
-                    frozenCount++;
-                    console.warn(`[NexusStream] Stream frozen (${frozenCount * 5}s)`);
-                    if (frozenCount >= 4) {  // 20 seconds frozen with no buffer
-                        console.warn('[NexusStream] Stream frozen 20s — hard reloading page.');
-                        location.reload();
-                    }
-                }
+    hls.on(Hls.Events.ERROR, (_, data) => {
+        console.warn('[NexusStream] HLS error:', data.type, data.details, 'fatal:', data.fatal);
+        if (data.fatal) {
+            switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                    console.warn('[NexusStream] Network error — trying to recover...');
+                    hls.startLoad();
+                    scheduleRetry();
+                    break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                    console.warn('[NexusStream] Media error — recovering...');
+                    hls.recoverMediaError();
+                    break;
+                default:
+                    console.error('[NexusStream] Unrecoverable error — reinitializing...');
+                    scheduleRetry();
+                    break;
             }
+        }
+    });
 
-            lastTime = currentTime;
-        }, 5000);
-
-    } catch (e) {
-        clearTimeout(loadTimer);
-        console.error('[NexusStream] Init load failed:', e);
-        retryStream();
-    }
+    // Load timeout guard
+    clearTimeout(loadTimer);
+    loadTimer = setTimeout(() => {
+        console.warn('[NexusStream] Load timeout — retrying...');
+        scheduleRetry();
+    }, LOAD_TIMEOUT_MS);
 }
 
-// ── Offline / Online ─────────────────────────────────
+// ── Retry ─────────────────────────────────────────────
+function scheduleRetry() {
+    clearTimeout(retryTimer);
+    retryCount++;
+
+    if (retryCount > MAX_RETRIES) {
+        console.warn('[NexusStream] Max retries hit — reloading page.');
+        location.reload();
+        return;
+    }
+
+    console.log(`[NexusStream] Retry ${retryCount}/${MAX_RETRIES} in ${RETRY_DELAY_MS / 1000}s...`);
+    retryTimer = setTimeout(initHls, RETRY_DELAY_MS);
+}
+
+// ── Watchdog ──────────────────────────────────────────
+function startWatchdog() {
+    let lastTime = 0;
+    let frozenCount = 0;
+    let stallCount = 0;
+
+    setInterval(() => {
+        if (!video) return;
+
+        const currentTime = video.currentTime;
+        const isBuffering = video.readyState < 3;
+        const isPlaying = !video.paused && !video.ended;
+        const timeAdvanced = currentTime !== lastTime;
+
+        if (isPlaying) {
+            if (timeAdvanced) {
+                frozenCount = 0;
+                stallCount = 0;
+            } else if (isBuffering) {
+                stallCount++;
+                console.log(`[NexusStream] Buffering... (${stallCount * 5}s)`);
+                if (stallCount >= 12) {  // 60s of buffering
+                    console.warn('[NexusStream] Buffering > 60s — retrying stream.');
+                    stallCount = 0;
+                    initHls();
+                }
+            } else {
+                frozenCount++;
+                console.warn(`[NexusStream] Stream frozen (${frozenCount * 5}s)`);
+                if (frozenCount >= 4) {  // 20s frozen
+                    console.warn('[NexusStream] Stream frozen 20s — reloading page.');
+                    location.reload();
+                }
+            }
+        }
+
+        lastTime = currentTime;
+    }, 5000);
+}
+
+// ── Error Overlay ──────────────────────────────────────
+function showPlayerError(msg) {
+    const container = document.getElementById('player-container');
+    if (!container) return;
+    container.innerHTML = `
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+            justify-content:center;background:#0a0a0f;color:#fff;font-family:Outfit,sans-serif;gap:12px;">
+            <svg width="48" height="48" fill="none" stroke="#7c3aed" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p style="font-size:0.95rem;color:#a0a0b0;text-align:center;max-width:280px;">${msg}</p>
+        </div>`;
+}
+
+// ── Offline / Online ──────────────────────────────────
 window.addEventListener('offline', () => {
     if (offlineBanner) offlineBanner.style.display = 'block';
-    clearAutoRetry();
-    showError('You are offline. Stream paused — reconnect to resume.');
+    if (hls) hls.stopLoad();
 });
-
 window.addEventListener('online', () => {
     if (offlineBanner) offlineBanner.style.display = 'none';
-    retryStream();
+    initHls();
 });
 
-// ── Tab Visibility ───────────────────────────────────
+// ── Tab Visibility ────────────────────────────────────
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
         if (navigator.onLine && video.paused) {
-            // Attempt auto-resume
             video.play().catch(() => { });
         }
     }
 });
 
-// ── Global Errors ────────────────────────────────────
-window.addEventListener('error', (e) => {
-    console.error('[NexusStream] Global JS error:', e.message, e);
-});
-
-window.addEventListener('unhandledrejection', (e) => {
-    console.error('[NexusStream] Unhandled promise rejection:', e.reason);
-});
-
-// ── Boot ─────────────────────────────────────────────
-document.addEventListener('shaka-ui-loaded', () => {
-    if (!navigator.onLine) {
-        showError('No internet connection detected. Please check your network.');
-    } else {
-        initPlayer();
-    }
-});
-
-document.addEventListener('shaka-ui-load-failed', () => {
-    showError('Failed to load video player components.');
-});
-
-// ── Audio Boost ──────────────────────────────────────
+// ── Audio Boost ───────────────────────────────────────
 let audioCtx = null;
 let gainNode = null;
 let boostActive = false;
@@ -364,38 +235,36 @@ function toggleAudioBoost() {
     }
 }
 
-// ── Ad Refresh ───────────────────────────────────────
+// ── Ad Refresh ────────────────────────────────────────
 function initAdRefresh() {
-    // Refresh ads every 5 minutes (300,000 ms)
     setInterval(() => {
-        const adContainers = document.querySelectorAll('.adsterra-container');
-        adContainers.forEach(container => {
-            // To force ad scripts to re-execute, we have to detach and re-attach the script tags
+        document.querySelectorAll('.adsterra-container').forEach(container => {
             const content = container.innerHTML;
             container.innerHTML = '';
-
-            // Allow DOM to clear, then re-insert to trigger script loading again
             setTimeout(() => {
-                // We use document fragment approach if there are scripts, because innerHTML doesn't execute <script>
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = content;
-
                 Array.from(tempDiv.childNodes).forEach(node => {
                     if (node.tagName && node.tagName.toLowerCase() === 'script') {
-                        // Recreate script element to force browser to run it again
-                        const newScript = document.createElement('script');
-                        Array.from(node.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                        newScript.textContent = node.textContent;
-                        container.appendChild(newScript);
+                        const s = document.createElement('script');
+                        Array.from(node.attributes).forEach(a => s.setAttribute(a.name, a.value));
+                        s.textContent = node.textContent;
+                        container.appendChild(s);
                     } else {
                         container.appendChild(node.cloneNode(true));
                     }
                 });
             }, 50);
         });
-        console.log('[NexusStream] Ad placements automatically refreshed.');
-    }, 300000); // 300,000 ms = 5 minutes
+        console.log('[NexusStream] Ads refreshed.');
+    }, 300000);
 }
 
-// Start watching for Ad refresh
+// ── Boot ──────────────────────────────────────────────
+if (!navigator.onLine) {
+    showPlayerError('No internet connection. Please check your network.');
+} else {
+    initHls();
+    startWatchdog();
+}
 initAdRefresh();

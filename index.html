@@ -29,6 +29,18 @@
 
     <!-- Advanced Security -->
     <script src="security.js"></script>
+
+    <!-- Ad Fallback Handler -->
+    <script>
+        function showFallbackAd(element) {
+            element.parentElement.innerHTML = `
+                <div style="background: rgba(124, 58, 237, 0.05); border: 1px dashed rgba(124, 58, 237, 0.4); border-radius: 8px; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box;">
+                    <span style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Ad blocked by network</span>
+                    <a href="YOUR_ADSTERRA_DIRECT_LINK_HERE" target="_blank" style="background: var(--accent); color: white; padding: 6px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.8rem; transition: all 0.2s ease;">Support Us</a>
+                </div>
+            `;
+        }
+    </script>
 </head>
 
 <body>
@@ -56,8 +68,8 @@
             <div class="widget-card" style="margin-bottom: 1.5rem; text-align: center;">
                 <div class="ad-slot" style="min-height: 90px; padding: 10px;">
                     <div class="ad-label">ADVERTISEMENT</div>
-                    <div class="adsterra-container" style="display:flex; justify-content:center; align-items:center;">
-                        <script>
+                    <div class="adsterra-container">
+                        <script type="text/javascript">
                             atOptions = {
                                 'key': '1ca69cf21605b5f96150f989aaa7a1cf',
                                 'format': 'iframe',
@@ -66,8 +78,9 @@
                                 'params': {}
                             };
                         </script>
-                        <script
-                            src="https://www.highperformanceformat.com/1ca69cf21605b5f96150f989aaa7a1cf/invoke.js"></script>
+                        <script type="text/javascript"
+                            src="https://www.highperformanceformat.com/1ca69cf21605b5f96150f989aaa7a1cf/invoke.js"
+                            onerror="showFallbackAd(this)"></script>
                     </div>
                 </div>
             </div>
@@ -121,11 +134,11 @@
             <div class="widget-card" style="margin-top: 2rem;">
                 <div class="ad-slot" style="min-height: 120px; padding: 10px; text-align: center;">
                     <div class="ad-label">SPONSORED CONTENT</div>
-                    <div class="adsterra-container"
-                        style="display:flex; justify-content:center; align-items:center; width:100%;">
+                    <div class="adsterra-container" style="text-align: center;">
                         <script async="async" data-cfasync="false"
-                            src="https://pl28821366.effectivegatecpm.com/c9b9cf717d12011f2e3542109cca7670/invoke.js"></script>
-                        <div id="container-c9b9cf717d12011f2e3542109cca7670" style="margin: 0 auto; width:100%;"></div>
+                            src="https://pl28821366.effectivegatecpm.com/c9b9cf717d12011f2e3542109cca7670/invoke.js"
+                            onerror="showFallbackAd(this)"></script>
+                        <div id="container-c9b9cf717d12011f2e3542109cca7670" style="margin: 0 auto;"></div>
                     </div>
                 </div>
             </div>
@@ -181,9 +194,8 @@
                     style="min-height: 250px; display: flex; align-items: center; justify-content: center; text-align: center;">
                     <div>
                         <div class="ad-label">ADVERTISEMENT</div>
-                        <div class="adsterra-container"
-                            style="display:flex; justify-content:center; align-items:center;">
-                            <script>
+                        <div class="adsterra-container" style="text-align: center;">
+                            <script type="text/javascript">
                                 atOptions = {
                                     'key': '3bf0c65a5ea686561cf73cd75d3e3c38',
                                     'format': 'iframe',
@@ -192,29 +204,14 @@
                                     'params': {}
                                 };
                             </script>
-                            <script
-                                src="https://www.highperformanceformat.com/3bf0c65a5ea686561cf73cd75d3e3c38/invoke.js"></script>
+                            <script type="text/javascript"
+                                src="https://www.highperformanceformat.com/3bf0c65a5ea686561cf73cd75d3e3c38/invoke.js"
+                                onerror="showFallbackAd(this)"></script>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="widget-card">
-                <div class="widget-title">Promoted</div>
-                <div class="ad-slot"
-                    style="min-height: 250px; display: flex; align-items: center; justify-content: center; text-align: center;">
-                    <div>
-                        <div class="ad-label">SPONSORED</div>
-                        <div class="adsterra-container"
-                            style="display:flex; justify-content:center; align-items:center; width:100%;">
-                            <script async="async" data-cfasync="false"
-                                src="https://pl28821366.effectivegatecpm.com/c9b9cf717d12011f2e3542109cca7670/invoke.js"></script>
-                            <div id="container-c9b9cf717d12011f2e3542109cca7670" style="margin: 0 auto; width:100%;">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </aside>
     </main>
 

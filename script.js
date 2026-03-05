@@ -4,9 +4,9 @@
 
 // Stream source — DASH MPD with ClearKey DRM
 // Automatically decoded at runtime to prevent simple scraping
-const _E_URL = 'aHR0cHM6Ly9saXZlLXB2LXRhLmFtYXpvbi5mYXN0bHktZWRnZS5jb20vbGhyLW5pdHJvL2xpdmUvY2xpZW50cy9kYXNoL2VuYy93d3JtaG84MnBjL291dC92MS9kNzEzMGY0NjBkNDE0ODZlYTdlOGUzZWI0NWYwNTIyZi9jZW5jLm1wZA==';
-const _E_KID = 'YmFhZmRiOGViY2JiYzA2NTUzMzIyOTFkYTZmMTIxZGE=';
-const _E_KVAL = 'NjBhYzg5MmUwZWEwYjJjNDZmYzY4MzdjOTdlZDY0MWE=';
+const _E_URL = 'aHR0cHM6Ly9hOTZhaXZvdHRsaW5lYXItYS5ha2FtYWloZC5uZXQvT1RUQi9saHItbml0cm8vZW5jL3dmZGozbGdsZmcvb3V0L3YxL2IyZGI4OTE5YjdmNDRlZTM4ODI2ZGQxZmEwYzg0NmQzL2NlbmMubXBk';
+const _E_KID = 'MTA2YzFjZDhiNzczZjQ0ODYzMzVjZDk4ZjRkM2I4ZDg=';
+const _E_KVAL = 'MTY3ODI4MTg5MTE5ZmYyZWRhNzg1ZWI0YzBjN2YzNWM=';
 
 const STREAM_URL = atob(_E_URL);
 const DRM_KEY_ID = atob(_E_KID);
@@ -127,42 +127,42 @@ async function loadStream() {
             }
         },
         streaming: {
-            bufferingGoal: 60,         // Increased to 60s for a massive buffer against lag spikes
-            rebufferingGoal: 2,        // Reduced to 2s to resume playback MUCH faster after a drop
-            bufferBehind: 15,          // Reduced to save system memory
+            bufferingGoal: 45,         // Safe buffer size
+            rebufferingGoal: 5,        // Ensure solid download before resuming
+            bufferBehind: 30,          // Keep some memory 
             lowLatencyMode: false,
             ignoreTextStreamFailures: true,
             alwaysStreamText: false,
             stallEnabled: true,
-            stallThreshold: 1,         // Consider stalled after just 1 second to start jumping
+            stallThreshold: 2,         // Safe stall threshold 
             jumpLargeGaps: true,
             retryParameters: {
-                maxAttempts: 15,       // Maximize retry attempts
-                baseDelay: 500,        // Start retrying in just half a second
-                backoffFactor: 1.2,    // Slower exponential backoff to spam requests more evenly
-                fuzzFactor: 0.5,
-                timeout: 5000          // Slash timeout to 5s so it gives up faster and retries instead of hanging
+                maxAttempts: 10,       // Resilient fetching
+                baseDelay: 1000,
+                backoffFactor: 1.5,
+                fuzzFactor: 0.3,
+                timeout: 10000         // Stable timeout to prevent false connection failures
             }
         },
         manifest: {
             dash: {
                 autoCorrectDrift: true,
-                defaultPresentationDelay: 15 // Keep 15 seconds behind live edge (safe zone)
+                defaultPresentationDelay: 20 // Keep proper distance from live edge to avoid 404 chunks
             },
             retryParameters: {
-                maxAttempts: 15,
-                baseDelay: 500,
-                backoffFactor: 1.2,
-                fuzzFactor: 0.5,
-                timeout: 5000
+                maxAttempts: 10,
+                baseDelay: 1000,
+                backoffFactor: 1.5,
+                fuzzFactor: 0.3,
+                timeout: 10000
             }
         },
         abr: {
             enabled: true,
-            defaultBandwidthEstimate: 1000000, // 1 Mbps default to load instantly on slow networks, then upgrade
-            switchInterval: 1,                 // Extremely fast response (1s) to network changing
-            bandwidthUpgradeTarget: 0.90,
-            bandwidthDowngradeTarget: 0.85     // Aggressively downgrade quality early to PREVENT buffering
+            defaultBandwidthEstimate: 1500000, // 1.5 Mbps default
+            switchInterval: 2,                 // Evaluate every 2s
+            bandwidthUpgradeTarget: 0.85,
+            bandwidthDowngradeTarget: 0.95
         }
     });
 

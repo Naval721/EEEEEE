@@ -234,14 +234,14 @@ header {
     background: radial-gradient(circle, rgba(255, 255, 255, 0.02) 0%, transparent 70%);
     border: 1px dashed var(--border);
     border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
+    /* Removed flex */
     color: var(--text-secondary);
     font-size: 0.8rem;
     text-align: center;
     position: relative;
-    overflow: hidden;
+    padding-top: 20px;
+    /* Give some visual clearance for the absolute span */
 }
 
 .ad-label {
@@ -271,4 +271,29 @@ footer {
 
 .uc {
     pointer-events: none;
+}
+
+/* Ensure link components for ads are properly displayed */
+.adsterra-container {
+    display: block;
+    text-align: center;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.adsterra-container a,
+.ad-slot a {
+    display: inline-block !important;
+    max-width: 100%;
+    min-height: 50px;
+    visibility: visible !important;
+    opacity: 1 !important;
+    word-break: break-all;
+}
+
+.adsterra-container iframe,
+.ad-slot iframe {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }

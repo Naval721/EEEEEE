@@ -4,7 +4,7 @@
 
 // Stream source — HLS (no DRM)
 // Encoded at runtime to prevent simple scraping
-const _E_URL = 'aHR0cHM6Ly9ncmFuZC1zLXYwMDEuZmFnZ290c3BvcnRzLnR2L291dC92MS81Njk4MGYxNzQ1YThhZDE0NmE4YjRhNTFmOWVmN2ExOS9taXgtc3RyZWFtLm0zdTg=';
+const _E_URL = 'aHR0cHM6Ly9hbWcwMTI2OS1hbWcwMTI2OWMxLXNwb3J0c3RyaWJhbC1lbWVhLTUyMDQucGxheW91dHMubm93LmFtYWdpLnR2L3BsYXlsaXN0L2FtZzAxMjY5LXdpbGxvd3R2ZmFzdC13aWxsb3dwbHVzLXNwb3J0c3RyaWJhbGVtZWEvcGxheWxpc3QubTN1OA==';
 const STREAM_URL = atob(_E_URL);
 
 const MAX_RETRIES = 15;

@@ -2,15 +2,11 @@
 //  Nexus Stream — Main Script (Shaka Player + DRM)
 // ======================================================
 
-// Stream source — DASH MPD with ClearKey DRM
-// Automatically decoded at runtime to prevent simple scraping
-const _E_URL = 'aHR0cHM6Ly9hOTZhaXZvdHRsaW5lYXItYS5ha2FtYWloZC5uZXQvT1RUQi9saHItbml0cm8vZW5jL3dmZGozbGdsZmcvb3V0L3YxL2IyZGI4OTE5YjdmNDRlZTM4ODI2ZGQxZmEwYzg0NmQzL2NlbmMubXBk';
-const _E_KID = 'MTA2YzFjZDhiNzczZjQ0ODYzMzVjZDk4ZjRkM2I4ZDg=';
-const _E_KVAL = 'MTY3ODI4MTg5MTE5ZmYyZWRhNzg1ZWI0YzBjN2YzNWM=';
+// Stream source — HLS (no DRM)
+// Encoded at runtime to prevent simple scraping
+const _E_URL = 'aHR0cHM6Ly9ncmFuZC1zLXYwMDEuZmFnZ290c3BvcnRzLnR2L291dC92MS81Njk4MGYxNzQ1YThhZDE0NmE4YjRhNTFmOWVmN2ExOS9taXgtc3RyZWFtLm0zdTg=';
 
 const STREAM_URL = atob(_E_URL);
-const DRM_KEY_ID = atob(_E_KID);
-const DRM_KEY_VAL = atob(_E_KVAL);
 
 const LOAD_TIMEOUT_MS = 25000;
 const AUTO_RETRY_DELAY_MS = 5000;
@@ -118,34 +114,24 @@ async function loadStream() {
     startLoadTimer();
 
     shakaPlayer.configure({
-        drm: {
-            clearKeys: {
-                [DRM_KEY_ID]: DRM_KEY_VAL
-            }
-        },
         streaming: {
-            bufferingGoal: 12,           // Shorter buffer — faster live startup
-            rebufferingGoal: 2,          // Resume after 2s of data — don't wait long
-            bufferBehind: 30,            // Keep 30s behind for seek support
+            bufferingGoal: 12,
+            rebufferingGoal: 2,
+            bufferBehind: 30,
             lowLatencyMode: false,
             ignoreTextStreamFailures: true,
-            alwaysStreamText: false,
             stallEnabled: true,
-            stallThreshold: 1,           // Detect stalls quickly
+            stallThreshold: 1,
             jumpLargeGaps: true,
             retryParameters: {
                 maxAttempts: 10,
                 baseDelay: 1000,
                 backoffFactor: 1.5,
                 fuzzFactor: 0.3,
-                timeout: 15000           // More time per attempt on slow connections
+                timeout: 15000
             }
         },
         manifest: {
-            dash: {
-                autoCorrectDrift: true,
-                defaultPresentationDelay: 6  // Stay ~6s behind live edge — close but safe
-            },
             retryParameters: {
                 maxAttempts: 10,
                 baseDelay: 1000,
@@ -156,11 +142,17 @@ async function loadStream() {
         },
         abr: {
             enabled: true,
-            defaultBandwidthEstimate: 2000000, // 2 Mbps default estimate
-            switchInterval: 4,                 // Evaluate ABR every 4s — less jitter
+            defaultBandwidthEstimate: 2000000,
+            switchInterval: 4,
             bandwidthUpgradeTarget: 0.85,
             bandwidthDowngradeTarget: 0.95
         }
+    });
+
+    // Strip Referer header so the CDN doesn't block segment requests
+    shakaPlayer.getNetworkingEngine().registerRequestFilter((type, request) => {
+        delete request.headers['Referer'];
+        request.headers['Origin'] = '';
     });
 
     try {
